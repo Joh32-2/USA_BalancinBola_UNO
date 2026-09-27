@@ -70,9 +70,9 @@ void loop() {
   }
 
   Serial.print("Angulo_X:"); Serial.print(anguloFinalX);
-  Serial.print(",");
+  Serial.print(", ");
   Serial.print("Angulo_Y:"); Serial.print(anguloFinalY);
-  Serial.print(",");
+  Serial.print(", ");
   Serial.print("Angulo_Control_PID:"); Serial.println(magnitudInclinacion);
 
   delay(5); 
