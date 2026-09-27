@@ -1,6 +1,8 @@
 #include <Wire.h>
+#include <Servo.h>
 
 const int MPU = 0x68; 
+Servo miServo;
 
 int16_t AcX, AcY, AcZ;
 int16_t GyX, GyY, GyZ;
@@ -11,16 +13,33 @@ float dt;
 float anguloFiltradoX = 0.0; 
 float anguloFiltradoY = 0.0; 
 
-const float ANGULO_OFFSET_X = 0.0; 
-const float ANGULO_OFFSET_Y = 0.0;   
+const float ANGULO_OFFSET_X = 7.32; 
+const float ANGULO_OFFSET_Y = -8.18;   
 
 const float GYRO_BIAS_X = 0.0; 
 const float GYRO_BIAS_Y = 0.0; 
+
+const int PIN_SERVO = 9;
+const int PIN_IR = 2;
+const int SERVO_CENTRO = 90;
+
+// Ajuste según su estruvtura lololol
+float Kp = 1.2;  
+float Ki = 0.01; 
+float Kd = 0.25;  
+
+float error, errorPrevio, integral, derivativa, salidaPID;
+float setpointAngulo = 0.0; 
 
 void setup() {
   Serial.begin(115200); 
   Wire.begin();
   
+  pinMode(PIN_IR, INPUT);
+  
+  miServo.attach(PIN_SERVO);
+  miServo.write(SERVO_CENTRO);
+
   Wire.beginTransmission(MPU);
   Wire.write(0x6B); 
   Wire.write(0);    
@@ -69,11 +88,36 @@ void loop() {
     magnitudInclinacion = -magnitudInclinacion;
   }
 
-  Serial.print("Angulo_X:"); Serial.print(anguloFinalX);
-  Serial.print(", ");
-  Serial.print("Angulo_Y:"); Serial.print(anguloFinalY);
-  Serial.print(", ");
-  Serial.print("Angulo_Control_PID:"); Serial.println(magnitudInclinacion);
+  int estadoIR = digitalRead(PIN_IR);
 
-  delay(5); 
+  // AJUSTADO EL ANGULO OBJETIVO A 7 GRADOS PARA CLAVAR EL FRENO
+  if (estadoIR == LOW) {
+    if (magnitudInclinacion > 0.0) {
+      setpointAngulo = -7.0; 
+    } else {
+      setpointAngulo = 7.0;  
+    }
+  } else {
+    setpointAngulo = 0.0; 
+  }
+
+  error = setpointAngulo - magnitudInclinacion;
+  integral += error * dt;
+  integral = constrain(integral, -20, 20);
+  derivativa = (error - errorPrevio) / dt;
+  errorPrevio = error;
+
+  salidaPID = (Kp * error) + (Ki * integral) + (Kd * derivativa);
+
+  int anguloServo = SERVO_CENTRO + (int)salidaPID;
+  anguloServo = constrain(anguloServo, 60, 120); 
+
+  miServo.write(anguloServo);
+
+  Serial.print("IR:"); Serial.print(estadoIR);
+  Serial.print(",Angulo:"); Serial.print(magnitudInclinacion);
+  Serial.print(",Setpoint:"); Serial.print(setpointAngulo);
+  Serial.print(",Servo:"); Serial.println(anguloServo);
+
+  delay(15); 
 }
