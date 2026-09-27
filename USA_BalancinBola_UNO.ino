@@ -7,14 +7,15 @@ int16_t GyX, GyY, GyZ;
 
 unsigned long tiempoPrevio;
 float dt;
-float anguloFiltradoX = 0.0; // Ángulo final en el eje X
 
+float anguloFiltradoX = 0.0; 
+float anguloFiltradoY = 0.0; 
 
-// CONFIGURACIÓN DE CALIBRACIÓN MANUAL
 const float ANGULO_OFFSET_X = 0.0; 
+const float ANGULO_OFFSET_Y = 0.0;   
 
-// Compensación para el giroscopio en X
 const float GYRO_BIAS_X = 0.0; 
+const float GYRO_BIAS_Y = 0.0; 
 
 void setup() {
   Serial.begin(115200); 
@@ -25,7 +26,6 @@ void setup() {
   Wire.write(0);    
   Wire.endTransmission(true);
 
-  // Configurar escala del Giroscopio a +/- 250 grados/seg
   Wire.beginTransmission(MPU);
   Wire.write(0x1B); 
   Wire.write(0x00); 
@@ -35,7 +35,6 @@ void setup() {
 }
 
 void loop() {
-  // Leer los registros de Acelerómetro y Giroscopio
   Wire.beginTransmission(MPU);
   Wire.write(0x3B); 
   Wire.endTransmission(false);
@@ -44,31 +43,37 @@ void loop() {
   AcX = Wire.read() << 8 | Wire.read();
   AcY = Wire.read() << 8 | Wire.read();
   AcZ = Wire.read() << 8 | Wire.read();
-  Wire.read(); Wire.read(); // Ignorar temperatura
+  Wire.read(); Wire.read(); 
   GyX = Wire.read() << 8 | Wire.read();
   GyY = Wire.read() << 8 | Wire.read();
   GyZ = Wire.read() << 8 | Wire.read();
 
-  // Calcular diferencial de tiempo (dt)
   unsigned long tiempoActual = micros();
   dt = (tiempoActual - tiempoPrevio) / 1000000.0;
   tiempoPrevio = tiempoActual;
 
-  // Calcular el ángulo de inclinación en X usando el acelerómetro
-  float anguloAcX = atan2(AcY, AcZ) * 180.0 / M_PI;
+  float anguloAcX = atan2(AcY, sqrt(pow(AcX, 2) + pow(AcZ, 2))) * 180.0 / M_PI;
+  float anguloAcY = atan2(-AcX, sqrt(pow(AcY, 2) + pow(AcZ, 2))) * 180.0 / M_PI;
 
-  // Convertir la velocidad angular del Giroscopio en X a grados/segundo
   float velGyroX = (GyX - GYRO_BIAS_X) / 131.0;
+  float velGyroY = (GyY - GYRO_BIAS_Y) / 131.0;
 
-  // Filtro Complementario enfocado estrictamente en el Eje X
   anguloFiltradoX = 0.98 * (anguloFiltradoX + velGyroX * dt) + 0.02 * anguloAcX;
+  anguloFiltradoY = 0.98 * (anguloFiltradoY + velGyroY * dt) + 0.02 * anguloAcY;
 
-  // Aplicar Offset
   float anguloFinalX = anguloFiltradoX + ANGULO_OFFSET_X;
+  float anguloFinalY = anguloFiltradoY + ANGULO_OFFSET_Y;
 
-  Serial.print("Angulo_X_Balancin:");
-  Serial.println(anguloFinalX);
+  float magnitudInclinacion = sqrt(pow(anguloFinalX, 2) + pow(anguloFinalY, 2));
+  if (anguloFinalX < 0) {
+    magnitudInclinacion = -magnitudInclinacion;
+  }
 
-  delay(5);
+  Serial.print("Angulo_X:"); Serial.print(anguloFinalX);
+  Serial.print(",");
+  Serial.print("Angulo_Y:"); Serial.print(anguloFinalY);
+  Serial.print(",");
+  Serial.print("Angulo_Control_PID:"); Serial.println(magnitudInclinacion);
+
+  delay(5); 
 }
-
